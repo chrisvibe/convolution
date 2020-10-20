@@ -13,55 +13,79 @@ class ConvolutionSpec extends FlatSpec with Matchers {
   val kernelSize = 3
 
 
-  behavior of "Convolution"
+  behavior of "KernelConvolution"
 
-  it should "Convolute an image" in {
+  it should "Convolute an image the size of the kernel, output a pixel value" in {
     wrapTester(
       // modified to generate vcd output
-      // chisel3.iotesters.Driver.execute(Array("--generate-vcd-output", "on", "--backend-name", "treadle"), () => new Convolution(rowDims, colDims)) { c =>
-      chisel3.iotesters.Driver(() => new Convolution(kernelSize)) { c =>
-        new DotProd(c)
+      // chisel3.iotesters.Driver.execute(Array("--generate-vcd-output", "on", "--backend-name", "treadle"), () => new KernelConvolution(kernelSize)) { c =>
+      chisel3.iotesters.Driver(() => new KernelConvolution(kernelSize)) { c =>
+        new SimpleDotProd(c)
+      } should be(true)
+    )
+  }
+
+  it should "Convolute an image the size of the kernel, output a pixel value" in {
+    wrapTester(
+      // modified to generate vcd output
+      // chisel3.iotesters.Driver.execute(Array("--generate-vcd-output", "on", "--backend-name", "treadle"), () => new KernelConvolution(kernelSize)) { c =>
+      chisel3.iotesters.Driver(() => new KernelConvolution(kernelSize)) { c =>
+        new SimpleDotProd(c)
       } should be(true)
     )
   }
 
 }
 
-// waveform example from tutorial
-// replace:
-// chisel3.iotesters.Driver(() => new SimpleDelay) { c =>
-// with:
-// chisel3.iotesters.Driver.execute(Array("--generate-vcd-output", "on", "--backend-name", "treadle"), () => new SimpleDelay) { c =>
-
+// waveform output 
 // trying to produce vcd as per example above
 // replace:
 // chisel3.iotesters.Driver(() => new MatMul(rowDims, colDims)) { c =>
   // with:
-// chisel3.iotesters.Driver.execute(Array("--generate-vcd-output", "on", "--backend-name", "treadle"), () => new MatMul(rowDims, colDims)) { c =>
+// chisel3.iotesters.Driver.execute(Array("--generate-vcd-output", "on", "--backend-name", "treadle"), () => new KernelConvolution(kernelSize)) { c =>
 
 object ConvolutionTests {
 
-  val rand = new scala.util.Random(100)
+  class SimpleDotProd(c: KernelConvolution) extends PeekPokeTester(c) {
 
-  class TestExample(c: Convolution) extends PeekPokeTester(c) {
-    println("Convolution.......................................")
+    println("runnig dot prod calc with inputs:")
+    // val area = List.fill(c.kernelSize)(rand.nextInt(10))
+    // val kernel = List.fill(c.kernelSize)(rand.nextInt(10)) // todo 1111
+    val kernel: List[List[Int]] =
+    List(
+      List(1, 1, 1),
+      List(1, 1, 1),
+      List(1, 1, 1)
+    )
+    val area: List[List[Int]] =
+    List(
+      List(1, 2, 3),
+      List(1, 3, 2),
+      List(3, 2, 1)
+    )
+    print(area.map(_.mkString).mkString("\n"))
+    print("\n")
+    val expectedOutput = 18 
 
-    val mA = genMatrix(c.kernelSize, c.kernelSize)
-    // val mC = matrixMultiply(mA, mB.transpose)
-
-    // Input data
-    for(ii <- 0 until c.kernelSize * c.kernelSize){
-      val row = ii / c.kernelSize
-      val col = ii % c.kernelSize
-      poke(c.io.valid_in, false.B)
-      poke(c.io.pixelVal_in, mA(row)(col))
-      expect(c.io.pixelVal_out, mA(row)(col), "direct connection in/out")
-      step(1)
+    // load kernel
+    for(i <- 0 until c.kernelSize){
+      for(j <- 0 until c.kernelSize){
+        poke(c.io.kernelVal_in, kernel(i)(j))
+        step(1)
+      }
     }
-
+    // calculate convolution
+    for(i <- 0 until c.kernelSize){
+      for(j <- 0 until c.kernelSize){
+        poke(c.io.pixelVal_in, area(i)(j))
+        if(i == c.kernelSize)
+          expect(c.io.pixelVal_out, expectedOutput)
+        step(1)
+      }
+    }
   }
 
-  class DotProd(c: Convolution) extends PeekPokeTester(c) {
+  class reset(c: KernelConvolution) extends PeekPokeTester(c) {
 
     println("runnig dot prod calc with inputs:")
     // val area = List.fill(c.kernelSize)(rand.nextInt(10))
