@@ -19,7 +19,7 @@ class ConvolutionSpec extends FlatSpec with Matchers {
     wrapTester(
       // modified to generate vcd output
       // chisel3.iotesters.Driver.execute(Array("--generate-vcd-output", "on", "--backend-name", "treadle"), () => new Convolution(rowDims, colDims)) { c =>
-      chisel3.iotesters.Driver(() => new Convolution(height, width, kernelSize)) { c =>
+      chisel3.iotesters.Driver(() => new Convolution(kernelSize)) { c =>
         new TestExample(c)
       } should be(true)
     )
@@ -46,13 +46,13 @@ object ConvolutionTests {
   class TestExample(c: Convolution) extends PeekPokeTester(c) {
     println("Convolution.......................................")
 
-    val mA = genMatrix(c.height, c.width)
+    val mA = genMatrix(c.kernelSize, c.kernelSize)
     // val mC = matrixMultiply(mA, mB.transpose)
 
     // Input data
-    for(ii <- 0 until c.height * c.width){
-      val row = ii / c.width
-      val col = ii % c.width
+    for(ii <- 0 until c.kernelSize * c.kernelSize){
+      val row = ii / c.kernelSize
+      val col = ii % c.kernelSize
       poke(c.io.valid_in, false.B)
       poke(c.io.pixelVal_in, mA(row)(col))
       expect(c.io.pixelVal_out, mA(row)(col), "direct connection in/out")
