@@ -20,7 +20,7 @@ class ConvolutionSpec extends FlatSpec with Matchers {
       // modified to generate vcd output
       // chisel3.iotesters.Driver.execute(Array("--generate-vcd-output", "on", "--backend-name", "treadle"), () => new Convolution(rowDims, colDims)) { c =>
       chisel3.iotesters.Driver(() => new Convolution(kernelSize)) { c =>
-        new TestExample(c)
+        new DotProd(c)
       } should be(true)
     )
   }
@@ -61,41 +61,30 @@ object ConvolutionTests {
 
   }
 
-  // class FullMatMul(c: Convolution) extends PeekPokeTester(c) {
+  class DotProd(c: Convolution) extends PeekPokeTester(c) {
 
-  //   val mA = genMatrix(c.rowDimsA, c.colDimsA)
-  //   val mB = genMatrix(c.rowDimsA, c.colDimsA)
-  //   val mC = matrixMultiply(mA, mB.transpose)
+    println("runnig dot prod calc with inputs:")
+    // val area = List.fill(c.kernelSize)(rand.nextInt(10))
+    // val kernel = List.fill(c.kernelSize)(rand.nextInt(10)) // todo 1111
+    // val area: List[List[Int]] =
+    // List(
+      // List(1, 0, 0),
+      // List(0, 1, 0),
+      // List(0, 0, 1)
+    // )
+    // print(area.map(_.mkString).mkString("\n"))
+    val inputsA: List[Int] = List(1, 2, 3) 
+    val inputsB: List[Int] = List(1, 1, 1) 
+    println(inputsA.mkString("[", "] [", "]"))
+    println(inputsB.mkString("[", "] [", "]"))
+    val expectedOutput = (for ((a, b) <- inputsA zip inputsB) yield a * b) sum
 
-  //   println("Multiplying")
-  //   println(printMatrix(mA))
-  //   println("With")
-  //   println(printMatrix(mB.transpose))
-  //   println("Expecting")
-  //   println(printMatrix(mC))
+    for(ii <- 0 until c.kernelSize){
+      poke(c.io.pixelVal_in, inputsA(ii))
+      if(ii == c.kernelSize - 1)
+        expect(c.io.pixelVal_out, expectedOutput)
+      step(1)
+    }
+  }
 
-  //   // Input data
-  //   for(ii <- 0 until c.colDimsA * c.rowDimsA){
-
-  //     val rowInputIdx = ii / c.colDimsA
-  //     val colInputIdx = ii % c.colDimsA
-
-  //     poke(c.io.dataInA, mA(rowInputIdx)(colInputIdx))
-  //     poke(c.io.dataInB, mB(rowInputIdx)(colInputIdx))
-  //     expect(c.io.outputValid, false, "Valid output during initialization")
-
-  //     step(1)
-  //   }
-
-  //   // Perform calculation
-  //   for(ii <- 0 until (c.rowDimsA * c.rowDimsA)){
-  //     for(kk <- 0 until c.colDimsA - 1){
-  //       expect(c.io.outputValid, false, "Valid output mistimed")
-  //       step(1)
-  //     }
-  //     expect(c.io.outputValid, true, "Valid output timing is wrong")
-  //     expect(c.io.dataOut, mC(ii / c.rowDimsA)(ii % c.rowDimsA), "Wrong value calculated")
-  //     step(1)
-  //   }
-  // }
 }
