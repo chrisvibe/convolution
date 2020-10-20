@@ -66,24 +66,37 @@ object ConvolutionTests {
     println("runnig dot prod calc with inputs:")
     // val area = List.fill(c.kernelSize)(rand.nextInt(10))
     // val kernel = List.fill(c.kernelSize)(rand.nextInt(10)) // todo 1111
-    // val area: List[List[Int]] =
-    // List(
-      // List(1, 0, 0),
-      // List(0, 1, 0),
-      // List(0, 0, 1)
-    // )
-    // print(area.map(_.mkString).mkString("\n"))
-    val inputsA: List[Int] = List(1, 2, 3) 
-    val inputsB: List[Int] = List(1, 1, 1) 
-    println(inputsA.mkString("[", "] [", "]"))
-    println(inputsB.mkString("[", "] [", "]"))
-    val expectedOutput = (for ((a, b) <- inputsA zip inputsB) yield a * b) sum
+    val kernel: List[List[Int]] =
+    List(
+      List(1, 1, 1),
+      List(1, 1, 1),
+      List(1, 1, 1)
+    )
+    val area: List[List[Int]] =
+    List(
+      List(1, 2, 3),
+      List(1, 3, 2),
+      List(3, 2, 1)
+    )
+    print(area.map(_.mkString).mkString("\n"))
+    print("\n")
+    val expectedOutput = 18 
 
-    for(ii <- 0 until c.kernelSize){
-      poke(c.io.pixelVal_in, inputsA(ii))
-      if(ii == c.kernelSize - 1)
-        expect(c.io.pixelVal_out, expectedOutput)
-      step(1)
+    // load kernel
+    for(i <- 0 until c.kernelSize){
+      for(j <- 0 until c.kernelSize){
+        poke(c.io.kernelVal_in, kernel(i)(j))
+        step(1)
+      }
+    }
+    // calculate convolution
+    for(i <- 0 until c.kernelSize){
+      for(j <- 0 until c.kernelSize){
+        poke(c.io.pixelVal_in, area(i)(j))
+        if(i == c.kernelSize)
+          expect(c.io.pixelVal_out, expectedOutput)
+        step(1)
+      }
     }
   }
 

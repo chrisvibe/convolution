@@ -8,71 +8,62 @@ class Convolution(val kernelSize: Int) extends MultiIOModule {
 
   val io = IO(
     new Bundle {
-      val pixelVal_in   = Input(UInt(24.W))  // connected to mem 3x8 (8 bits per colour)
+      val kernelVal_in  = Input(UInt(1.W))  // connected to mem 8 (8 bits per colour) // TODO make this float???
+      val pixelVal_in   = Input(UInt(8.W))  // connected to mem 8 (8 bits per colour)
       val valid_in      = Input(Bool())
 
-      val pixelVal_out  = Output(UInt(24.W)) // connected to mem 3x8 (8 bits per colour)
+      val pixelVal_out  = Output(UInt(8.W)) // connected to mem 8 (8 bits per colour)
       val valid_out     = Output(Bool())
-      val pixelAddr     = Output(UInt(8.W))  // mem is word addressed
     }
   )
 
-  // FOR NOW WE DO CONVOLUTION ON A KERNEL AREA, AND SPIT OUT A SINGLE PIXEL
+  // Convolution on an area the size of the kernel -> spit out a single rgb pixel (r, g, or b - one of them)
+  // 1. Load kernel
+  // 2. Calculate dotproduct
+  // 3. Repeat
 
   // declare variables and counter regs
-  val (j, reset_j)    = Counter.apply(true.B, kernelSize)
+  val (j, reset_j)    = Counter.apply(true.B, kernelSize) // TODO only start again on reset signal
   val (i, reset_i)    = Counter.apply(reset_j, kernelSize)
   val master_counter  = Counter(kernelSize+1)
-  val area            = Module(new Matrix(kernelSize, kernelSize)).io // TODO add dimension for colour, black and white for now
   val kernel          = Module(new Matrix(kernelSize, kernelSize)).io
   val dotProdCalc     = Module(new DotProd(kernelSize)).io
-  val multiply_stage  = RegInit(Bool(), false.B)
+  val kernelReady     = RegInit(Bool(), false.B)
+  val rowSum          = RegInit(UInt(8.W), 0.U) // think about spillover/normilization
 
   // init regs
   io.pixelVal_out     := 0.U
   io.valid_out        := false.B
-  io.pixelAddr        := 0.U
-  // area.rowIdx         := 0.U 
-  // area.colIdx         := 0.U 
-  // area.dataIn         := 0.U 
-  area.writeEnable    := true.B
-  // kernel.rowIdx       := 0.U 
-  // kernel.colIdx       := 0.U 
-  // kernel.dataIn       := 0.U 
   kernel.writeEnable  := true.B
   dotProdCalc.dataInA := 0.U
   dotProdCalc.dataInB := 0.U
 
   // fill image and make kernel TODO get kernel from somewhere
-  area.rowIdx     := i
-  area.colIdx     := j
-  area.dataIn     := io.pixelVal_in 
   kernel.rowIdx   := i
   kernel.colIdx   := j
-  kernel.dataIn   := 1.U 
-
+  kernel.dataIn   := io.kernelVal_in 
 
   dotProdCalc.dataInA := io.pixelVal_in // TODO delete image?? just load kernel???
-  dotProdCalc.dataInB := 1.U
+  dotProdCalc.dataInB := kernel.dataOut 
   
   when (reset_i && reset_j) {
-    // if area is a (nxm) matrix, and a stage is an access to all (nxm) entries
-    // one stage dedicated to loading, n stages dedicated to dot_prod
+    // if kernel is a (nxm) matrix, and a stage is an access to all (nxm) entries
+    // one stage dedicated to loading kernel, n stages dedicated to dot_prod
+    // pixel vals are inputed via io as needed
     // total n+1 stages 
-    multiply_stage := !master_counter.inc()
+    kernelReady := !master_counter.inc()
   }
 
-  when (multiply_stage) {
+  when (kernelReady) {
     kernel.writeEnable    := false.B
-    area.writeEnable      := false.B
     // dotproduct
-    area.rowIdx := master_counter.value - 1.U
-    dotProdCalc.dataInA := area.dataOut
+    dotProdCalc.dataInA := io.pixelVal_in
+    kernel.rowIdx := master_counter.value - 1.U
     dotProdCalc.dataInB := kernel.dataOut
+    when(dotProdCalc.outputValid) {
+      rowSum := rowSum + dotProdCalc.dataOut
+      io.valid_out := dotProdCalc.outputValid // TODO only ouput when done
+      io.pixelVal_out := rowSum 
+    }
   }
-
-  // set output
-  io.pixelAddr := 0.U
-  io.valid_out := dotProdCalc.outputValid 
-  io.pixelVal_out := dotProdCalc.dataOut 
 }
