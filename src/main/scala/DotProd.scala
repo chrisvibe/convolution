@@ -9,6 +9,7 @@ class DotProd(val elements: Int) extends Module {
     new Bundle {
       val dataInA     = Input(UInt(32.W))
       val dataInB     = Input(UInt(32.W))
+      val reset       = Input(Bool())
 
       val dataOut     = Output(UInt(32.W))
       val outputValid = Output(Bool())
@@ -19,22 +20,23 @@ class DotProd(val elements: Int) extends Module {
   /**
     * Your code here
     */
-  // TODO needed? avoid false results...
   io.outputValid := false.B
-  io.dataOut := 0.U
 
-  val counter = Counter(elements)
-  // val counter = Counter(elements+1)
+  val (countVal, countReset)  = Counter(true.B, elements)
+  // val counter = Counter(elements)
   val accumulator = RegInit(UInt(32.W), 0.U)
-  val product = io.dataInA * io.dataInB
-  accumulator := accumulator + product
-
-  when(counter.inc()) { // here on overflow
-    // ??? why not add a 1 to elements and ignore this?
-    // val product = io.dataInA * io.dataInB 
-    // io.dataOut := accumulator
-    io.dataOut := accumulator + product
-    io.outputValid := true.B
+  when(io.reset) {
+    countVal    := 0.U 
     accumulator := 0.U
+    io.dataOut  := 0.U
+  } .otherwise {
+    val product = io.dataInA * io.dataInB
+    accumulator := accumulator + product
+    io.dataOut := accumulator + product
+
+    when(countReset) { // here on overflow
+      io.outputValid := true.B
+      accumulator := 0.U
+    }
   }
 }
