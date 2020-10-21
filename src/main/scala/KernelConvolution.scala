@@ -9,14 +9,11 @@ class KernelConvolution(val kernelSize: Int, val nModules: Int) extends MultiIOM
   val io = IO(
     new Bundle {
       val kernelVal_in  = Input(UInt(32.W)) // connected to stream from camera/hdmi (8 bits per colour)
-      val valid_in      = Input(Bool())     // pause everything when this is false
-      // val pixelVal_in   = Input(UInt(8.W))  // connected to stream from camera/hdmi (8 bits per colour)
-      val pixelVal_in   = Input(Vec(2, UInt(8.W)))
-      val reset         = Input(Bool())     // re-load kernel and continue convolving
+      val pixelVal_in   = Input(Vec(nModules, UInt(8.W)))
+      val reset         = Input(Bool())     // re-load kernel and continue convolving // TODO fix reset mechanism as it sucks 
 
 
-      // val pixelVal_out  = Output(UInt(8.W)) // connected to hdmi-out (8 bits per colour)
-      val pixelVal_out  = Output(Vec(2, UInt(8.W)))
+      val pixelVal_out  = Output(Vec(nModules, UInt(8.W)))
       val valid_out     = Output(Bool())
     }
   )
@@ -32,47 +29,59 @@ class KernelConvolution(val kernelSize: Int, val nModules: Int) extends MultiIOM
   val kernel        = Module(new Matrix(kernelSize, kernelSize)).io
   val extReset      = RegInit(Bool(), false.B)
 
-  // declare dynamic variables
-  // val dotProdCalc     = VecInit(Seq.Fill(2)(Module(new DotProd(kernelSize*kernelSize)).io))
-  val dotProdCalc     = Module(new DotProd(kernelSize*kernelSize)).io
-  val accumulator     = RegInit(UInt(32.W), 0.U)  // Think about how big this should be
+  // declare array variables
+  val dotProdCalc   = VecInit(Seq.fill(nModules)(Module(new DotProd(kernelSize*kernelSize)).io))
+  val accumulator   = VecInit(Seq.fill(nModules)(RegInit(UInt(32.W), 0.U)))
   
   extReset := io.reset
-  dotProdCalc.reset := false.B
 
   when (extReset) {
-    countVal    := 0.U
-    kernelReady := false.B 
-    accumulator := 0.U
-    dotProdCalc.reset := true.B
+    countVal       := 0.U
+    kernelReady    := false.B 
+    for(i <- 0 until nModules){
+      accumulator(i)  := 0.U
+      dotProdCalc(i).reset := true.B
+    }
+  } .otherwise {
+    for(i <- 0 until nModules){
+      accumulator(i)  := 0.U
+      dotProdCalc(i).reset := false.B
+    }
   }
-
-  // count sum of area to normalize output matrix
-  accumulator := accumulator + io.pixelVal_in(0)
 
   when(countReset) {
     kernelReady := true.B 
   }
 
   // init regs and output
-  io.pixelVal_out(0)  := 0.U
-  io.pixelVal_out(1)  := 16.U
+  for(i <- 0 until nModules){
+    io.pixelVal_out(i)      := 0.U
+    dotProdCalc(i).dataInA  := 0.U
+    dotProdCalc(i).dataInB  := 0.U
+  }
+
   io.valid_out        := false.B
-  dotProdCalc.dataInA := 0.U
-  dotProdCalc.dataInB := 0.U
   kernel.writeEnable  := true.B
 
-  // load kernel and feed convolution
+  // Load kernel
   kernel.rowIdx   := countVal / kernelSize.U
   kernel.colIdx   := countVal % kernelSize.U
   kernel.dataIn   := io.kernelVal_in 
-  
-  when (kernelReady) {
-    kernel.writeEnable    := false.B
-    dotProdCalc.dataInA   := io.pixelVal_in(0)
-    dotProdCalc.dataInB   := kernel.dataOut
-    io.pixelVal_out(0)    := dotProdCalc.dataOut // TODO normalize this
-    io.valid_out          := dotProdCalc.outputValid
+
+  when (kernelReady) { // feed convolution
+    kernel.writeEnable       := false.B
+
+    // TODO make loops everywhere
+    for(i <- 0 until nModules){
+      dotProdCalc(i).dataInA   := io.pixelVal_in(i)
+      dotProdCalc(i).dataInB   := kernel.dataOut
+      io.pixelVal_out(i)       := dotProdCalc(i).dataOut // TODO normalize this
+    }
+    io.valid_out             := dotProdCalc(0).outputValid // one represents all
+  } .otherwise {
+    for(i <- 0 until nModules){
+      accumulator(i)  := 0.U
+    }
   }
   // printf("here---- row %d, col %d, kernelVal %d, ready? %d, dotProd %d\n", countVal / kernelSize.U, countVal % kernelSize.U, kernel.dataOut, kernelReady, dotProdCalc.dataOut);
 
