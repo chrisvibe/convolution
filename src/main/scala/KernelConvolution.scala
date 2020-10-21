@@ -44,7 +44,7 @@ class KernelConvolution(val kernelSize: Int, val nModules: Int) extends MultiIOM
     }
   } .otherwise {
     for(i <- 0 until nModules){
-      accumulator(i)  := 0.U
+      // accumulator(i)  := 0.U
       dotProdCalc(i).reset := false.B
     }
   }
@@ -76,12 +76,13 @@ class KernelConvolution(val kernelSize: Int, val nModules: Int) extends MultiIOM
       dotProdCalc(i).dataInA   := io.pixelVal_in(i)
       dotProdCalc(i).dataInB   := kernel.dataOut
       io.pixelVal_out(i)       := dotProdCalc(i).dataOut // TODO normalize this
+      accumulator(i)           := accumulator(i) + io.pixelVal_in(i)
     }
     io.valid_out             := dotProdCalc(0).outputValid // one represents all
   } .otherwise {
-    for(i <- 0 until nModules){
-      accumulator(i)  := 0.U
-    }
+    // for(i <- 0 until nModules){
+    //   accumulator(i)  := 0.U
+    // }
   }
   // printf("here---- row %d, col %d, kernelVal %d, ready? %d, dotProd %d\n", countVal / kernelSize.U, countVal % kernelSize.U, kernel.dataOut, kernelReady, dotProdCalc.dataOut);
 
