@@ -74,7 +74,7 @@ object ConvolutionTests {
     print(area1.map(_.mkString).mkString("\n"))
     print("\n-------------------------\n")
     val expectedOutput0 = 15 
-    val expectedOutput1 = 16 
+    val expectedOutput1 = 13 
 
     // init
     poke(c.io.reset, true)
@@ -93,8 +93,8 @@ object ConvolutionTests {
       for(j <- 0 until c.kernelSize){
         poke(c.io.pixelVal_in(0), area0(i)(j))
         poke(c.io.pixelVal_in(1), area1(i)(j))
-        // if((i == c.kernelSize - 1) && (j == c.kernelSize - 1)){
-         // expect(c.io.pixelVal_out(0), expectedOutput0)
+        // if((i == c.kernelSize - 1) && (j == c.kernelSize - 1)){  // TODO unpredictable timing depending on reset signal
+        //  // expect(c.io.pixelVal_out(0), expectedOutput0)
          // expect(c.io.pixelVal_out(1), expectedOutput1)
         // }
         step(1)
