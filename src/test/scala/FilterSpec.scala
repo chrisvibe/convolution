@@ -8,7 +8,7 @@ import TestUtils._
 class FilterSpec extends FlatSpec with Matchers {
   import FilterTests._
 
-  val parallelFIlters = 6
+  val parallelPixels = 1
 
   behavior of "FilterSpec"
 
@@ -17,8 +17,8 @@ class FilterSpec extends FlatSpec with Matchers {
       
   it should "Filter" in {
     wrapTester(
-      chisel3.iotesters.Driver.execute(Array("--generate-vcd-output", "on", "--backend-name", "treadle"), () => new Filter(parallelFIlters)) { c =>
-        new Test(c)
+      chisel3.iotesters.Driver.execute(Array("--generate-vcd-output", "on", "--backend-name", "treadle"), () => new Filter(parallelPixels)) { c =>
+        new IdentityTest(c)
       } should be(true)
     )
   }
@@ -33,12 +33,26 @@ class FilterSpec extends FlatSpec with Matchers {
 
 object FilterTests {
 
-  class Test(c: Filter) extends PeekPokeTester(c) {
+  class IdentityTest(c: Filter) extends PeekPokeTester(c) {
 
-    println("runnig filter...................")
+    val kernelSize = 3
+
+    val image: List[UInt] = List( 
+        200.U(16.W), 100.U(16.W), 50.U(16.W), 200.U(16.W), 100.U(16.W), 50.U(16.W),
+        100.U(16.W), 50.U(16.W), 200.U(16.W), 100.U(16.W), 50.U(16.W), 200.U(16.W),
+        50.U(16.W), 200.U(16.W), 100.U(16.W), 50.U(16.W), 200.U(16.W), 100.U(16.W),
+        200.U(16.W), 100.U(16.W), 50.U(16.W), 200.U(16.W), 100.U(16.W), 50.U(16.W),
+        100.U(16.W), 50.U(16.W), 200.U(16.W), 100.U(16.W), 50.U(16.W), 200.U(16.W),
+        50.U(16.W), 200.U(16.W), 100.U(16.W), 50.U(16.W), 200.U(16.W), 100.U(16.W)
+    )
+
+    println("running filter...................")
     poke(c.io.test_in, true.B)
-    step(1)
+    step(kernelSize + 1)
     expect(c.io.test_out, true.B)
-    
+
+    for(i <- 0 until c.parallelPixels){
+      expect(c.io.pixelVal_out(i), image(i))
+    }
   }
 }

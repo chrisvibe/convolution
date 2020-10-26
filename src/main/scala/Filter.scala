@@ -9,9 +9,11 @@ class Filter(val parallelPixels: Int) extends MultiIOModule {
     val io = IO(
         new Bundle {
             // input fra SPI
+            val test_in         = Input(Bool())
             
-            val pixelVal_out   = Output(Vec(parallelPixels, UInt(8.W)))
-            val valid_out      = Output(Bool())
+            val pixelVal_out    = Output(Vec(parallelPixels, UInt(16.W)))
+            val valid_out       = Output(Bool())
+            val test_out        = Output(Bool())
         }
     )
     
@@ -21,28 +23,28 @@ class Filter(val parallelPixels: Int) extends MultiIOModule {
   
     val kernels = VecInit(
         VecInit(
-            0.S(8.W), 0.S(8.W), 0.S(8.W),
-            0.S(8.W), 1.S(8.W), 0.S(8.W),
-            0.S(8.W), 0.S(8.W), 0.S(8.W)
+            0.U(16.W), 0.U(16.W), 0.U(16.W),
+            0.U(16.W), 1.U(16.W), 0.U(16.W),
+            0.U(16.W), 0.U(16.W), 0.U(16.W)
         ),
         VecInit(
-            0.S(8.W), 0.S(8.W), 0.S(8.W),
-            0.S(8.W), 0.S(8.W), 0.S(8.W),
-            0.S(8.W), 0.S(8.W), 0.S(8.W)
+            0.U(16.W), 0.U(16.W), 0.U(16.W),
+            0.U(16.W), 0.U(16.W), 0.U(16.W),
+            0.U(16.W), 0.U(16.W), 0.U(16.W)
         )
     )
     val kernelSums = VecInit(
-        RegInit(SInt(32.W), 1.S),
-        RegInit(SInt(32.W), 1.S),
+        RegInit(UInt(32.W), 1.U),
+        RegInit(UInt(32.W), 1.U),
     )
   
     val image = VecInit(
-        200.U(8.W), 100.U(8.W), 50.U(8.W), 200.U(8.W), 100.U(8.W), 50.U(8.W),
-        100.U(8.W), 50.U(8.W), 200.U(8.W), 100.U(8.W), 50.U(8.W), 200.U(8.W),
-        50.U(8.W), 200.U(8.W), 100.U(8.W), 50.U(8.W), 200.U(8.W), 100.U(8.W),
-        200.U(8.W), 100.U(8.W), 50.U(8.W), 200.U(8.W), 100.U(8.W), 50.U(8.W),
-        100.U(8.W), 50.U(8.W), 200.U(8.W), 100.U(8.W), 50.U(8.W), 200.U(8.W),
-        50.U(8.W), 200.U(8.W), 100.U(8.W), 50.U(8.W), 200.U(8.W), 100.U(8.W)
+        200.U(16.W), 100.U(16.W), 50.U(16.W), 200.U(16.W), 100.U(16.W), 50.U(16.W),
+        100.U(16.W), 50.U(16.W), 200.U(16.W), 100.U(16.W), 50.U(16.W), 200.U(16.W),
+        50.U(16.W), 200.U(16.W), 100.U(16.W), 50.U(16.W), 200.U(16.W), 100.U(16.W),
+        200.U(16.W), 100.U(16.W), 50.U(16.W), 200.U(16.W), 100.U(16.W), 50.U(16.W),
+        100.U(16.W), 50.U(16.W), 200.U(16.W), 100.U(16.W), 50.U(16.W), 200.U(16.W),
+        50.U(16.W), 200.U(16.W), 100.U(16.W), 50.U(16.W), 200.U(16.W), 100.U(16.W)
     )
 
     val kernelConvolution = Module(new KernelConvolution(kernelSize, parallelPixels)).io
@@ -57,26 +59,31 @@ class Filter(val parallelPixels: Int) extends MultiIOModule {
     val (imageCounterX, imageCounterXReset) = Counter(true.B, kernelSize)
     val (imageCounterY, imageCounterYReset) = Counter(imageCounterXReset, kernelSize)
     val pixelReached = RegInit(UInt(32.W), 0.U)
+
     for (i <- 0 until parallelPixels){
-        when((imageCounterX - 1 + i + pixelReached < 0) || (imageCounterX - 1 + i + pixelReached >= imageWidth) || (imageCounterY - 1 < 0) || (imageCounterY - 1 >= imageHeight) || i + pixelReached >= imageWidth * imageHeight){
+        when((imageCounterX + i.U + pixelReached < 1.U) || (imageCounterX + i.U + pixelReached > imageWidth.U) || (imageCounterY < 1.U) || (imageCounterY > imageHeight.U) || i.U + pixelReached >= (imageWidth * imageHeight).U){
             kernelConvolution.pixelVal_in(i) := 0.U
+            printf("pixel_in%d: %d (out of bounds)\n", i.U, 0.U);
         }.otherwise{
-            kernelConvolution.pixelVal_in(i) := image((imageCounterY - 1) * imageWidth + imageCounterX - 1 + i + pixelReached)
+            kernelConvolution.pixelVal_in(i) := image((imageCounterY - 1.U) * imageWidth.U + imageCounterX - 1.U + i.U + pixelReached)
+            printf("pixel_in%d: %d\n", i.U, image((imageCounterY - 1.U) * imageWidth.U + imageCounterX - 1.U + i.U + pixelReached));
         }
+        io.pixelVal_out(i) := kernelConvolution.pixelVal_out(i)
     }
     
     for(i <- 0 until parallelPixels){
         when(colorInvert){
-            pixelVal_out(i) := 255.U - kernelConvolution.pixelVal_out(i)
+            io.pixelVal_out(i) := 255.U - kernelConvolution.pixelVal_out(i)
         }.otherwise{
-            pixelVal_out(i) := kernelConvolution.pixelVal_out(i)
+            io.pixelVal_out(i) := kernelConvolution.pixelVal_out(i)
         }
     }
     
-    valid_out := false.B
+    io.valid_out := kernelConvolution.valid_out 
     
-    when(kernelCounterReset){
-        pixelReached := pixelReached + parallelPixels
-        valid_out := true.B
+    when(kernelCountReset){
+        pixelReached := pixelReached + parallelPixels.U
     }
+    io.test_out := io.test_in
+    // printf("in filter!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 }

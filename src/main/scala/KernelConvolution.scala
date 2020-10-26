@@ -8,11 +8,11 @@ class KernelConvolution(val kernelSize: Int, val nModules: Int) extends MultiIOM
     
     val io = IO(
         new Bundle {
-            val kernelVal_in  = Input(SInt(8.W))
-            val pixelVal_in   = Input(Vec(nModules, UInt(8.W))) 
+            val kernelVal_in  = Input(UInt(16.W))
+            val pixelVal_in   = Input(Vec(nModules, UInt(16.W))) 
             
             
-            val pixelVal_out  = Output(Vec(nModules, UInt(8.W)))
+            val pixelVal_out  = Output(Vec(nModules, UInt(16.W)))
             val valid_out     = Output(Bool())
         }
     )
